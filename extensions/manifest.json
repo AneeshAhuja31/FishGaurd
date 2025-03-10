@@ -3,7 +3,7 @@
     "name": "PhishingShield",
     "version": "1.0.0",
     "description": "AI-powered phishing detection for Gmail and LinkedIn",
-    "permission": [
+    "permissions": [
         "activeTab",
         "storage",
         "webNavigation",
