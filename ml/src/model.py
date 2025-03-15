@@ -1,141 +1,271 @@
-from urllib.parse import urlparse
-import re
-import pickle
-import numpy as np
-from transformers import DistilBertForSequenceClassification,DistilBertTokenizer
+import tensorflow as tf
+from tensorflow.keras.layers import Dense, Dropout, Input, Conv1D, GlobalMaxPooling1D, Embedding
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.feature_extraction.text import TfidfVectorizer
-import torch
-from ml.src.utils import extract_url_features
+import numpy as np
+import pickle
 import os
+import joblib
+import re
 
 class PhishingDetector:
-    def __init__(self,model_path='ml/models/distilbert_phishing'):
-        self.model = None
+    def __init__(self, model_path=None):
+        self.cnn_model = None
+        self.tfidf_model = None
         self.tokenizer = None
         self.tfidf_vectorizer = None
-        self.model_path = model_path
-        self.load_model()
-    
-    def load_model(self):
-        try:
-            self.model = DistilBertForSequenceClassification.from_pretrained(self.model_path) #?? complete name
-            self.tokenizer = DistilBertTokenizer.from_pretrained(self.model_path)
-            self.model.eval()
-
-            vectorizer_path = os.path.join(self.model_path,"tfidf_vectorizer.pkl")
-            # if os.path.exists(vectorizer_path):
-            with open(f"{self.model_path}/tfidf_vectorizer.pkl","rb") as f:
-                self.tfidf_vectorizer = pickle.load(f)
-            return True
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            try:
-                with open(f"{self.model_path}/tfidf_vectorizer.pkl", "rb") as f:
-                    self.tfidf_vectorizer = pickle.load(f)
-                return self.tfidf_vectorizer is not None
-            except Exception as e2:
-                print(f"Error loading fallback vectorizer: {e2}")
-                return False
-    
-    def predict(self,url):
-        features,text_representation = extract_url_features(url)
-        if self.model is not None and self.tokenizer is not None:
-            try:
-                inputs = self.tokenizer(text_representation,return_tensors="pt",truncation=True,padding=True,max_length=128) #use pytorch tensor, longer text is truncated and short text is padded
-                with torch.no_grad(): #run DistilBERT withot computing grad, to make it faster
-                    outputs = self.model(**inputs) #unpack dictionary
-                    logits = outputs.logits
-                    probabilities = torch.softmax(logits,dim=1)
-                    prediction = torch.argmax(probabilities,dim=1).item()
-                    confidence = probabilities[0][prediction].item()
-                
-                result = {
-                    "is_phishing":bool(prediction),
-                    "confidence":confidence,
-                    "features":features
-                }
-                result['reasons'] = self._get_reasons(features,result['is_phishing'])
-                return result
-            
-            except Exception as e:
-                print(f"Error in DistilBERT prediction, falling back to TF-IDF: {e}")
-        return self._fallback_prediction(text_representation,features)
+        self.max_length = 100  # Max URL length to consider
+        self.max_words = 10000  # Vocabulary size
         
-    def _fallback_prediction(self, text_representation, features):
-        """Fallback method using TF-IDF and basic feature analysis."""
-        if self.tfidf_vectorizer is None:
-            # If no models are available, use purely rule-based
-            score = self._calculate_rule_based_score(features)
+        if model_path:
+            self.load(model_path)
+        
+    def build_cnn_model(self):
+        """
+        Build a CNN-based model for URL classification
+        """
+        # Input layer
+        input_layer = Input(shape=(self.max_length,))
+        
+        # Embedding layer - removed deprecated input_length parameter
+        embedding_layer = Embedding(
+            input_dim=self.max_words + 1,
+            output_dim=64
+        )(input_layer)
+        
+        # CNN layers
+        conv1 = Conv1D(filters=64, kernel_size=3, activation='relu')(embedding_layer)
+        pool1 = GlobalMaxPooling1D()(conv1)
+        
+        # Dense layers
+        dense1 = Dense(64, activation='relu')(pool1)
+        dropout1 = Dropout(0.2)(dense1)
+        output = Dense(1, activation='sigmoid')(dropout1)
+        
+        # Create model
+        self.cnn_model = Model(inputs=input_layer, outputs=output)
+        
+        # Compile model
+        self.cnn_model.compile(
+            optimizer=Adam(learning_rate=1e-3),
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        return self.cnn_model
+    
+    def build_tfidf_model(self):
+        """
+        Build a TF-IDF based model as fallback
+        """
+        # Initialize vectorizer
+        self.tfidf_vectorizer = TfidfVectorizer(
+            analyzer='char', 
+            ngram_range=(3, 5),
+            max_features=5000,
+            lowercase=True
+        )
+        
+        # Define a simple model
+        input_layer = Input(shape=(5000,))
+        x = Dense(128, activation='relu')(input_layer)
+        x = Dropout(0.25)(x)
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        output = Dense(1, activation='sigmoid')(x)
+        
+        # Create model
+        self.tfidf_model = Model(inputs=input_layer, outputs=output)
+        
+        # Compile model
+        self.tfidf_model.compile(
+            optimizer=Adam(learning_rate=1e-3),
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        return self.tfidf_model
+    
+    def preprocess_urls(self, urls):
+        """
+        Preprocess URLs for both models
+        """
+        # URL cleaning function
+        def clean_url(url):
+            # Convert to lowercase
+            url = url.lower()
+            # Remove http/https/www prefixes
+            url = re.sub(r'^https?://(www\.)?', '', url)
+            # Remove trailing slashes
+            url = re.sub(r'/$', '', url)
+            return url
+        
+        # Apply cleaning to all URLs
+        return [clean_url(url) for url in urls]
+    
+    def preprocess_cnn_data(self, urls, fit=False):
+        """
+        Convert URLs to CNN inputs
+        """
+        # Clean URLs
+        cleaned_urls = self.preprocess_urls(urls)
+        
+        # Create or use tokenizer
+        if fit or self.tokenizer is None:
+            self.tokenizer = Tokenizer(num_words=self.max_words, char_level=True)
+            self.tokenizer.fit_on_texts(cleaned_urls)
+        
+        # Convert to sequences
+        sequences = self.tokenizer.texts_to_sequences(cleaned_urls)
+        padded_sequences = pad_sequences(sequences, maxlen=self.max_length)
+        
+        return padded_sequences
+    
+    def preprocess_tfidf_data(self, urls, fit=False):
+        """
+        Convert URLs to TF-IDF features
+        """
+        # Clean URLs
+        cleaned_urls = self.preprocess_urls(urls)
+        
+        # Create or transform with vectorizer
+        if fit or self.tfidf_vectorizer is None:
+            return self.tfidf_vectorizer.fit_transform(cleaned_urls).toarray()
+        return self.tfidf_vectorizer.transform(cleaned_urls).toarray()
+    
+    def save(self, model_dir):
+        """
+        Save both models and preprocessing components
+        """
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Save CNN model - updated to use .keras extension
+        if self.cnn_model:
+            cnn_save_path = os.path.join(model_dir, 'cnn_model.keras')
+            self.cnn_model.save(cnn_save_path)
+            print(f"CNN model saved to {cnn_save_path}")
+            
+            tokenizer_path = os.path.join(model_dir, 'tokenizer.pickle')
+            with open(tokenizer_path, 'wb') as handle:
+                pickle.dump(self.tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            print(f"Tokenizer saved to {tokenizer_path}")
+            
+        # Save TF-IDF model - updated to use .keras extension
+        if self.tfidf_model:
+            tfidf_save_path = os.path.join(model_dir, 'tfidf_model.keras')
+            self.tfidf_model.save(tfidf_save_path)
+            print(f"TF-IDF model saved to {tfidf_save_path}")
+            
+            vectorizer_path = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
+            joblib.dump(self.tfidf_vectorizer, vectorizer_path)
+            print(f"TF-IDF vectorizer saved to {vectorizer_path}")
+    
+    def load(self, model_dir):
+        """
+        Load models and preprocessing components
+        """
+        # Load CNN model - updated to use .keras extension
+        cnn_model_path = os.path.join(model_dir, 'cnn_model.keras')
+        tokenizer_path = os.path.join(model_dir, 'tokenizer.pickle')
+        
+        if os.path.exists(cnn_model_path) and os.path.exists(tokenizer_path):
+            self.cnn_model = load_model(cnn_model_path)
+            with open(tokenizer_path, 'rb') as handle:
+                self.tokenizer = pickle.load(handle)
+            print("CNN model and tokenizer loaded successfully")
         else:
-            # Use TF-IDF vectorizer
-            text_vector = self.tfidf_vectorizer.transform([text_representation])
-            tfidf_score = np.mean(text_vector.toarray())
-            
-            # Combine TF-IDF with rule-based score
-            rule_score = self._calculate_rule_based_score(features)
-            score = 0.7 * rule_score + 0.3 * min(tfidf_score * 2, 1.0)
+            print(f"Could not find CNN model at {cnn_model_path}")
         
-        # Ensure score is between 0 and 1
-        score = max(min(score, 1.0), 0.0)
-        is_phishing = score > 0.5
+        # Load TF-IDF model - updated to use .keras extension
+        tfidf_model_path = os.path.join(model_dir, 'tfidf_model.keras')
+        vectorizer_path = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
         
-        result = {
-            "is_phishing": is_phishing,
-            "confidence": score,
-            "features": features,
-            "using_fallback": True
-        }
-        
-        # Add reason based on features
-        result["reasons"] = self._get_reasons(features, is_phishing)
-        
-        return result
+        if os.path.exists(tfidf_model_path) and os.path.exists(vectorizer_path):
+            self.tfidf_model = load_model(tfidf_model_path)
+            self.tfidf_vectorizer = joblib.load(vectorizer_path)
+            print("TF-IDF model and vectorizer loaded successfully")
+        else:
+            print(f"Could not find TF-IDF model at {tfidf_model_path}")
     
-    def _calculate_rule_based_score(self, features):
-        """Calculate a phishing likelihood score based on URL features."""
-        score = 0
-        
-        # URL length (longer URLs are more suspicious)
-        if features["url_length"] > 75:
-            score += 0.2
-        
-        # Special characters
-        if features["special_chars"] > 10:
-            score += 0.2
-        
-        # IP address in domain
-        if features["has_ip"]:
-            score += 0.3
-        
-        # Suspicious keywords
-        score += min(features["suspicious_keywords"] * 0.1, 0.3)
-        
-        # Many dots in domain
-        if features["dots_in_domain"] > 3:
-            score += 0.2
+    def predict(self, urls):
+        """
+        Make predictions using CNN model with TF-IDF fallback
+        """
+        # Ensure we have a list of URLs
+        if isinstance(urls, str):
+            urls = [urls]
             
-        return min(score, 1.0)
-    
-    def _get_reasons(self,features,is_phishing):
-        reasons = []
-        if not is_phishing:
-            return ['URL appears to be legimate based on analysis']
-
-        if features['url_length']>75:
-            reasons.append("Unusually long URL")
-
-        if features['dots_in_domain']>3:
-            reasons.append('Excessive dots in domain')
-
-        if features['special_chars'] > 10:
-            reasons.append("High number of special characters")
-
-        if features['has_ip']:
-            reasons.append('IP address used instead of domain name')
-
-        if features['suspicious_keywords']>1:
-            reasons.append("Contains suspicious keywords")
-
-        return reasons or ["Combination of suspicious URL patterns"]
+        predictions = np.zeros(len(urls), dtype=int)
+        
+        # Try CNN model first
+        if self.cnn_model and self.tokenizer:
+            try:
+                print("Predicting with CNN model...")
+                cnn_inputs = self.preprocess_cnn_data(urls)
+                cnn_raw_predictions = self.cnn_model.predict(cnn_inputs)
+                predictions = (cnn_raw_predictions > 0.5).astype(int).flatten()
+                print(f"CNN raw predictions: {cnn_raw_predictions.flatten()}")
+                
+                # If all predictions are 0, try TF-IDF model
+                if np.sum(predictions) == 0:
+                    print("All CNN predictions are 0, trying TF-IDF model...")
+                    raise Exception("Fallback to TF-IDF")
+                    
+                return predictions
+            except Exception as e:
+                print(f"CNN model error or fallback: {e}")
+        else:
+            print("No CNN model available")
+        
+        # Fallback to TF-IDF model
+        if self.tfidf_model and self.tfidf_vectorizer:
+            try:
+                print("Predicting with TF-IDF model...")
+                tfidf_features = self.preprocess_tfidf_data(urls)
+                tfidf_raw_predictions = self.tfidf_model.predict(tfidf_features)
+                predictions = (tfidf_raw_predictions > 0.5).astype(int).flatten()
+                print(f"TF-IDF raw predictions: {tfidf_raw_predictions.flatten()}")
+                return predictions
+            except Exception as e:
+                print(f"TF-IDF model error: {e}")
+        else:
+            print("No TF-IDF model available")
+        
+        # If all else fails, perform basic heuristic check
+        print("Using heuristic fallback...")
+        for i, url in enumerate(urls):
+            # Basic heuristic for phishing detection
+            url_lower = url.lower()
+            suspicious_patterns = [
+                'login', 'signin', 'verify', 'secure', 'account', 'password',
+                'confirm', 'update', 'apple', 'paypal', 'bank', 'support'
+            ]
+            suspicious_domains = [
+                '.com-', '-secure-', '.secureupdate.', '-app.', '.app.',
+                'authenticate', 'verification', 'validate'
+            ]
             
-
+            # Check for phishing indicators
+            score = 0
+            for pattern in suspicious_patterns:
+                if pattern in url_lower:
+                    score += 1
+            
+            for domain in suspicious_domains:
+                if domain in url_lower:
+                    score += 2
+            
+            # Check for excessive subdomains or path segments
+            dots = url.count('.')
+            slashes = url.count('/')
+            if dots > 3 or slashes > 4:
+                score += 1
+            
+            # Final decision
+            predictions[i] = 1 if score >= 3 else 0
+            
+        return predictions

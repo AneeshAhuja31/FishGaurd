@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import re
 from sklearn.model_selection import train_test_split
-
+from bs4 import BeautifulSoup
 # def clean_url(url):
 #     url = url.strip()
 #     if not url.startswith(('http://','https://')):
