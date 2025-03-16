@@ -5,3 +5,18 @@ pandas
 datasets
 ipykernel
 transformers[torch]
+pymongo
+bs4
+joblib
+tensorflow
+tf-keras
+matplotlib
+fastapi
+fastapi uvicorn
+google-generativeai
+jwt
+pyjwt
+pytest 
+pytest-asyncio 
+httpx 
+pytest-cov
