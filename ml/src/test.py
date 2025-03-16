@@ -14,7 +14,7 @@ def test_model(model_dir):
     test_urls = [
         "http://src.0.8.5.4/?uu&",  # Legitimate
         "http://paypal.com-secure-login.net/login.html",  # Phishing
-        "https://www.google.com",  # Legitimate
+        "https://www.goggle.com",  # Legitimate
         "https://www.huschhus.ch/sitebar/index.php",  # Legitimate
         "http://www.cel.com/pdf/misc/zic13_pktanlz_sm.pdf",  # Legitimate
         "http://eltronesia.id/.well-known/pki-validation/raiffeisen/lograiffeisenFull/sms.php"  # Legitimate
