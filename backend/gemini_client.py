@@ -1,7 +1,7 @@
-# gemini_client.py
 import os
 import google.generativeai as genai
-from google.generativeai import types
+from dotenv import load_dotenv
+load_dotenv()
 
 class GeminiClient:
     def __init__(self):
@@ -9,7 +9,6 @@ class GeminiClient:
         if not api_key:
             raise ValueError("Missing GEMINI_API_KEY environment variable")
         genai.configure(api_key=api_key)
-        #self.client = genai.Client(api_key=api_key)
         self.model = "gemini-2.0-flash"
 
     def analyze_job_posting_with_prompt(self, prompt):
@@ -18,52 +17,48 @@ class GeminiClient:
         
         result = response.text.strip().lower()
         
-        # Validate result
         if result not in ["ok", "suspicious", "malicious"]:
-            result = "suspicious"  # Default to suspicious if invalid response
+            result = "suspicious"  # def to sus if invalid response
             
         return result
     
-    # def analyze_job_posting(self, job_title, company_name, job_description):
-    
-    #     prompt = f"""
-    #     Analyze this job posting and classify it as one of these categories:
-    #     "ok" - legitimate job posting
-    #     "suspicious" - has some red flags but not clearly fake
-    #     "malicious" - clearly a scam or fake job posting
+    #not in use:
+    def analyze_phishing_url(self, url, content, context="a website"):
+        """
+        Analyze a URL to determine if it's a phishing attempt.
         
-    #     Job Title: {job_title}
-    #     Company: {company_name}
-    #     Description: {job_description}
-        
-    #     Return only one word: ok, suspicious, or malicious.
-    #     """
-        
-    #     contents = [
-    #         types.Content(
-    #             role="user",
-    #             parts=[types.Part.from_text(text=prompt)],
-    #         ),
-    #     ]
-        
-    #     generate_content_config = types.GenerateContentConfig(
-    #         temperature=0.2,  # Lower temperature for more consistent responses
-    #         top_p=0.95,
-    #         top_k=40,
-    #         max_output_tokens=10,  # We only need a short response
-    #         response_mime_type="text/plain",
-    #     )
-        
-    #     response = self.client.models.generate_content(
-    #         model=self.model,
-    #         contents=contents,
-    #         config=generate_content_config,
-    #     )
-        
-    #     result = response.text.strip().lower()
-        
-    #     # Validate result
-    #     if result not in ["ok", "suspicious", "malicious"]:
-    #         result = "suspicious"  # Default to suspicious if invalid response
+        Args:
+            url: The URL to analyze
+            content: The content associated with the URL (email body, message text, etc.)
+            context: Context where this URL was found (email, LinkedIn, etc.)
             
-    #     return result
+        Returns:
+            bool: True if the URL is likely phishing, False if likely safe
+        """
+        model = genai.GenerativeModel(self.model)
+        
+        prompt = f"""
+        Analyze this URL found in {context} and determine if it's a phishing attempt.
+        
+        URL: {url}
+        Content: {content}
+        
+        Consider these factors:
+        - Domain typosquatting (looks like a legitimate domain but with slight variations)
+        - Unusual subdomains or URL patterns
+        - Mismatches between the link text and actual URL destination
+        - Use of URL shorteners in suspicious contexts
+        - Urgency or threats in the surrounding content
+        - Requests for personal information or credentials
+        - Poor grammar or spelling in the content
+        
+        Return only one word: "phishing" or "safe".
+        """
+        
+        response = model.generate_content(prompt)
+        result = response.text.strip().lower()
+        
+        if result == "phishing":
+            return True
+        else:
+            return False
