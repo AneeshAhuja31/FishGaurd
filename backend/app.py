@@ -31,7 +31,7 @@ class JobPostingRequest(BaseModel):
     job_id: str
     job_title: str
     company_name: str
-    company_id: Optional[str] = None  # optional since Gmail might not have this
+    company_id: Optional[str] = None  #since gmail might not have this
     job_description: str
     source: str  
     email_sender: Optional[str] = None  #for gmail source

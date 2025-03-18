@@ -3,7 +3,8 @@ import os
 from datetime import datetime
 
 try:
-    MONGO_URI = os.getenv('MONGO_URI', "mongodb://localhost:27017")
+    #MONGO_URI = os.getenv('MONGO_URI', "mongodb://localhost:27017")
+    MONGO_URI = "mongodb+srv://divyanshtulsiani01:MyItsDdB8s8tKJlv@cluster0.ns4rp.mongodb.net/"
     client = MongoClient(MONGO_URI)
     db = client['fishgaurd'] #create a db
 except Exception as e:
