@@ -1,19 +1,10 @@
-transformers
-scikit-learn
-torch
-pandas
-datasets
-ipykernel
-transformers[torch]
 pymongo
 bs4
 joblib
-tensorflow
-tf-keras
-matplotlib
 fastapi
-fastapi uvicorn
+uvicorn
 google-generativeai
+google
 jwt
 pyjwt
 pytest 
