@@ -18,7 +18,7 @@ scamsearch_client = ScamSearchClient()
 class URLCheckRequest(BaseModel):
     url: str
     content: Optional[str] = None
-    source: str
+    source: str  # Now can be 'gmail' or 'linkedin'
     user_id: Optional[str] = None  # Optional user_id for personalized results
 
 class URLTagRequest(BaseModel):
@@ -31,11 +31,13 @@ class JobPostingRequest(BaseModel):
     job_id: str
     job_title: str
     company_name: str
-    company_id: Optional[str] = None  #since gmail might not have this
+    company_id: Optional[str] = None  # since gmail/linkedin might not have this
     job_description: str
-    source: str  
-    email_sender: Optional[str] = None  #for gmail source
-    email_subject: Optional[str] = None  #forgmail source
+    source: str  # now can be 'gmail' or 'linkedin'
+    email_sender: Optional[str] = None  # for gmail source
+    email_subject: Optional[str] = None  # for gmail source
+    post_author: Optional[str] = None  # for linkedin source
+    connection_degree: Optional[int] = None  # for linkedin source
     user_id: Optional[str] = None
 
 class JobPostingTagRequest(BaseModel):
@@ -59,7 +61,7 @@ def read_root():
 @app.post("/check-url")
 async def check_url(request: URLCheckRequest):
     #check for url in db first
-    print(f"Checking URL: {request.url} for user: {request.user_id}")  # Add debug line
+    print(f"Checking URL: {request.url} for user: {request.user_id} from source: {request.source}")  # Add debug line
     url_data = get_phishing_urls(request.url, request.user_id)
 
     if url_data:
@@ -125,11 +127,20 @@ async def check_job_posting(request: JobPostingRequest):
     
     #first check with scamsearch 
     try:
+        # Add LinkedIn-specific parameters if available
+        additional_params = {}
+        if request.source == 'linkedin':
+            additional_params = {
+                'post_author': request.post_author,
+                'connection_degree': request.connection_degree
+            }
+        
         scam_result = scamsearch_client.analyze_job_posting(
             company_name=request.company_name,
             job_title=request.job_title,
             job_description=request.job_description,
-            email_sender=request.email_sender
+            email_sender=request.email_sender,
+            **additional_params
         )
         
         #if scamsearch has high confidence, use its result
@@ -163,7 +174,9 @@ async def check_job_posting(request: JobPostingRequest):
             
             Return only one word: ok, suspicious, or malicious.
             """
-        else:  # LinkedIn
+        elif request.source == "linkedin":
+            # Create LinkedIn-specific prompt
+            connection_info = f"Connection degree: {request.connection_degree}" if request.connection_degree else "Connection degree: Unknown"
             prompt = f"""
             Analyze this job posting from LinkedIn and classify it as one of these categories:
             "ok" - legitimate job posting
@@ -172,6 +185,8 @@ async def check_job_posting(request: JobPostingRequest):
             
             Job Title: {request.job_title}
             Company: {request.company_name}
+            Posted by: {request.post_author or 'Unknown'}
+            {connection_info}
             Description: {request.job_description}
             
             Return only one word: ok, suspicious, or malicious.
@@ -217,6 +232,3 @@ async def untag_job_posting(request: UntagJobRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-    

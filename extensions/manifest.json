@@ -10,7 +10,10 @@
     },
     "permissions": [
       "storage",
-      "activeTab"
+      "activeTab",
+      "scripting",
+      "alarms"
+
     ],
     "host_permissions": [
       "https://mail.google.com/*",

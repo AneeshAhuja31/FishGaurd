@@ -4,7 +4,8 @@ import hashlib
 
 class VirusTotalClient:
     def __init__(self):
-        api_key = os.environ.get("VIRUSTOTAL_API_KEY")
+        #api_key = os.environ.get("VIRUSTOTAL_API_KEY")
+        api_key = "11792b5654624f02a49779635e40fcb2e55ab5592c36a8093430ebc271a10728"
         if not api_key:
             raise ValueError("Missing VIRUSTOTAL_API_KEY environment variable")
         self.api_key = api_key

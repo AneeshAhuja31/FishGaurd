@@ -44,6 +44,9 @@ def get_phishing_urls(url, user_id=None):
         result = global_data.copy()  # Create a copy to avoid modifying the global data
         result['is_phishing'] = int(user_tag['is_phishing'])
         result['personalized'] = True
+        
+        # Add this debug line to see what's being returned
+        print(f"User tag found for {url}: is_phishing={result['is_phishing']}, source={user_tag.get('source', 'unknown')}")
         return result
     return global_data
 

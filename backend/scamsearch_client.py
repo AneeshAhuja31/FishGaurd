@@ -3,7 +3,8 @@ import requests
 
 class ScamSearchClient:
     def __init__(self):
-        api_key = os.environ.get("SCAMSEARCH_API_KEY")
+        #api_key = os.environ.get("SCAMSEARCH_API_KEY")
+        api_key = "jv7850zgcsrdefk4tiba6nyhwq1l9p"
         if not api_key:
             raise ValueError("Missing SCAMSEARCH_API_KEY environment variable")
         self.api_key = api_key

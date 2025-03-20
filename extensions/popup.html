@@ -1,17 +1,137 @@
-<!DOCTYPE html>
-<html lang="en">
+<!-- <!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phishing Detector</title>
-    <link rel="stylesheet" href="styles.css">
+  <title>FishGuard</title>
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      margin-right: 10px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #333;
+    }
+    #statistics {
+      margin-top: 16px;
+      padding: 12px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      border-left: 4px solid #4285f4;
+    }
+    .session-info {
+      font-size: 12px;
+      color: #666;
+      font-style: italic;
+      margin-top: 10px;
+    }
+    .buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    #resetButton {
+      background-color: #f44336;
+    }
+    #resetButton:hover {
+      background-color: #d32f2f;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+    }
+    .stat-label {
+      font-weight: bold;
+    }
+    .stat-value {
+      background-color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      min-width: 24px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Phishing Alert!</h2>
-        <p id="message">Checking URL...</p>
-        <button id="report">Report Link</button>
-    </div>
-    <script src="popup.js"></script>
+  <div class="header">
+    <img src="icons/icon48.png" alt="FishGuard Logo" class="logo">
+    <h1>FishGuard Protection</h1>
+  </div>
+  
+  <div id="statistics">
+    <p>Loading statistics...</p>
+  </div>
+  
+  <div class="session-info">
+    Current session statistics. Stats reset automatically after 30 minutes of inactivity.
+  </div>
+  
+  <div class="buttons">
+    <button id="refreshButton">Scan Current Page</button>
+    <button id="resetButton">Reset Stats</button> 
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> -->
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FishGuard</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon48.png" alt="FishGuard Logo" class="logo">
+    <h1>FishGuard Protection</h1>
+  </div>
+  
+  <div id="statistics">
+    <p>Loading statistics...</p>
+  </div>
+  
+  <div class="session-info">
+    Current session statistics. Stats reset automatically after 30 minutes of inactivity.
+  </div>
+  
+  <div class="buttons">
+    <button id="refreshButton">Scan Current Page</button>
+    <button id="resetButton">Reset Stats</button> 
+  </div>
+  
+  <script src="popup.js"></script>
 </body>
 </html>
+
