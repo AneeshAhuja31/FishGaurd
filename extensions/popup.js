@@ -239,7 +239,8 @@ function highlightLinks(urlResults) {
 
 async function loadlinks(links, platform = 'gmail') {
   try {
-    let userId = localStorage.getItem('fishguard_user_id');
+    //let userId = localStorage.getItem('fishguard_user_id');
+    let userId = 'user_123456789';
     if (!userId) {
       userId = 'user_' + Math.random().toString(36).substring(2, 15);
       localStorage.setItem('fishguard_user_id', userId);
