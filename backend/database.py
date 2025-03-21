@@ -105,32 +105,21 @@ def update_phishing_url_tag(url, is_phishing, user_id, source="user_tagged"): #u
     tag_result = add_url_tag(url, is_phishing, user_id, source)
     return tag_result.modified_count > 0 or tag_result.upserted_id is not None
 
+
+
+
 def untag_url(url, user_id):
     global_url = phishing_urls.find_one({'url': url})
     if not global_url:
         return False
     
-    # Get the opposite of the global value
-    opposite_value = 0 if global_url['is_phishing'] == 1 else 1
-    
-    tag_doc = {
+    # Remove the user tag completely instead of setting to opposite value
+    result = user_url_tags.delete_one({
         'user_id': user_id,
-        'url': url,
-        'is_phishing': opposite_value,
-        'source': 'user_untagged',
-        'tagged_at': datetime.now()
-    }
+        'url': url
+    })
     
-    result = user_url_tags.update_one(
-        {
-            'user_id': user_id,
-            'url': url
-        },
-        {'$set': tag_doc},
-        upsert=True
-    )
-    
-    return result.modified_count > 0 or result.upserted_id is not None
+    return result.deleted_count > 0
 
 def get_fake_job_postings(job_id, user_id=None):
     #get job posting with user-specific tagging if available
